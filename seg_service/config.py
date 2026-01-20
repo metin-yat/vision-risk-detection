@@ -1,13 +1,18 @@
-# Helmet detection config
+import os
+from pathlib import Path
 
-# File paths
-RAW_IMAGES_DIR = "data/raw_images"
-QUEUE_DIR = "data/queue"
-MODEL_PATH = "models/yolov11m-seg.pt"
+# Use environment variables if they exist, otherwise use your defaults
+class Config:
+    SOURCE_DIR = os.getenv("SOURCE_DIR", "source/safe_construction_zone.mp4")
+    QUEUE_DIR = os.getenv("QUEUE_DIR", "data/queue")
+    
+    # Model settings
+    MODEL_PATH = os.getenv("MODEL_PATH", "person-helmet-2dfvf/1")#"helmet-person-person_with_helmet/1")
+    
+    # Hyperparameters
+    CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", 0.5))
+    IOU_THRESHOLD = float(os.getenv("IOU_THRESHOLD", 0.3))
 
-# Model settings
-CONFIDENCE_THRESHOLD = 0.5
-IOU_THRESHOLD = 0.3  # how much helmet overlaps with head
-
-# Performance logging
-FPS_LOG_INTERVAL = 10  # show fps every 10 frames
+    # Logging
+    FPS_LOG_INTERVAL = int(os.getenv("FPS_LOG_INTERVAL", 10))
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
