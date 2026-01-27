@@ -7,8 +7,6 @@ import cv2
 from pathlib import Path
 from typing import Tuple, Optional
 
-
-
 class ImageSequenceCapture:
     """
     OpenCV VideoCapture-like interface for image sequences.
