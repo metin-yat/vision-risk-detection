@@ -158,3 +158,92 @@ def is_blurry(frame, threshold=100.0):
     
     # If the variance is less than the threshold, the image is considered blurry
     return variance < threshold, variance
+
+
+def calculate_frame_ppe_score(people, helmets):
+    """
+    Calculates the average safety score for a single frame based on 
+    the overlap between people and helmets.
+    
+    Args:
+        people (list): List of person detection objects.
+        helmets (list): List of helmet detection objects.
+        
+    Returns:
+        float: Average safety score for the frame (0.0 to 1.0).
+    """
+    if not people:
+        return None  # No people to analyze in this frame
+    
+    if not helmets:
+        return 0.0  # People present but no helmets detected
+    
+    # Convert center-based coordinates (x, y, w, h) to corner-based (x1, y1, x2, y2)
+    # Using NumPy for vectorized operations
+    ppl_boxes = np.array([[p.x - p.width/2, p.y - p.height/2, p.x + p.width/2, p.y + p.height/2] for p in people])
+    hmt_boxes = np.array([[h.x - h.width/2, h.y - h.height/2, h.x + h.width/2, h.y + h.height/2] for h in helmets])
+    
+    # Vectorized Overlap Calculation using Broadcasting
+    # Compare every person (N) with every helmet (M) -> Shape: (N, M)
+    x1 = np.maximum(ppl_boxes[:, None, 0], hmt_boxes[:, 0])
+    y1 = np.maximum(ppl_boxes[:, None, 1], hmt_boxes[:, 1])
+    x2 = np.minimum(ppl_boxes[:, None, 2], hmt_boxes[:, 2])
+    y2 = np.minimum(ppl_boxes[:, None, 3], hmt_boxes[:, 3])
+    
+    intersection = np.maximum(0, x2 - x1) * np.maximum(0, y2 - y1)
+    
+    # Calculate area of helmets to find the percentage of helmet inside a person box
+    helmet_areas = (hmt_boxes[:, 2] - hmt_boxes[:, 0]) * (hmt_boxes[:, 3] - hmt_boxes[:, 1])
+    
+    # Overlap ratio: How much of the helmet is contained within the person's bounding box
+    overlap_ratios = intersection / helmet_areas  # Shape: (N, M)
+    
+    # For each person, find the helmet with the maximum overlap
+    max_overlaps_per_person = np.max(overlap_ratios, axis=1)
+    
+    return np.mean(max_overlaps_per_person)
+
+
+def analyze_ppe_risk_batch(valid_frames_data, threshold=0.70):
+    """
+    Analyzes a batch of frames for PPE compliance and determines risk.
+    
+    Returns:
+        tuple: (batch_score, representative_image, is_risky)
+    """
+    # logger.info(f"PPE Risk Analysis started for a batch of {len(valid_frames_data)} frames.")
+    
+    frame_scores = []
+    rep_image = None
+    # Assuming batch_size is 10, index 4 or 5 is the middle (5th frame)
+    target_rep_idx = len(valid_frames_data) // 2 
+
+    for idx, data in enumerate(valid_frames_data):
+        frame_img = data.get('frame')
+        predictions = data.get('predictions', [])
+        
+        # Split predictions into categories
+        people = [p for p in predictions if p.class_name.lower() == 'person']
+        helmets = [p for p in predictions if p.class_name.lower() == 'helmet']
+        
+        # Compute score for the current frame
+        score = calculate_frame_ppe_score(people, helmets)
+        
+        if score is not None:
+            frame_scores.append(score)
+            
+        # Capture the middle frame as the representative image
+        if idx == target_rep_idx:
+            rep_image = frame_img
+
+    # Calculate final batch score (average of all frames with people)
+    # If no people were found in the entire batch, we default to 1.0 (no risk)
+    batch_score = sum(frame_scores) / len(frame_scores) if frame_scores else 1.0
+    is_risky = batch_score < threshold
+
+    # logger.info(f"Analysis finished. Score: {batch_score:.2f} | Risky: {is_risky}")
+
+    # Return representative image only if the batch is considered risky
+    final_rep_image = rep_image if is_risky else None
+    
+    return batch_score, final_rep_image, is_risky

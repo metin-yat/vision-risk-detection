@@ -1,3 +1,6 @@
+from typing import Any
+
+
 from data_loader import get_source
 from config import Config
 import logging, cv2, os, utils, time
@@ -44,13 +47,16 @@ def main():
 
     no_person_counter = 0
     processed_batches_counter = 0
+    event_buffer = []
+
+    start_time = time.perf_counter()
 
     try:
         while streamer.is_running or len(streamer.frame_buffer) > 0:
             current_batch = streamer.get_batch()
             
             if current_batch:
-                # 1. Ensure the batch is a list of numpy arrays
+                # Ensure the batch is a list of numpy arrays
                 # Using image=current_batch is usually enough if the arrays are standard
                 try:
                     results = model.infer(image=current_batch,
@@ -59,11 +65,11 @@ def main():
                     logger.error(f"Inference failed: {e}")
                     continue
 
-                # 2. Filter for human detection
+                # Filter for human detection
                 valid_frames_data = []
 
-                for idx, res in enumerate(results):
-                    # Robustly get predictions
+                for idx, res in enumerate[Any](results):
+                    # Get predictions
                     predictions = getattr(res, 'predictions', [])
                     
                     # Logic: Check if 'person' class exists in this specific frame
@@ -77,20 +83,85 @@ def main():
                     else:
                         no_person_counter += 1
 
-                # 3. Handle the valid data
+                # ====== BATCH RISK DETECTION PART STARTS HERE ====== ====== ====== 
                 if valid_frames_data:
                     processed_batches_counter += 1
-                    # TODO: Send valid_frames_data to Vectorized IoU function
-                    # logger.info(f"Batch {processed_batches_counter} contains humans. Processing...")
                     
-                # Break after first valid batch for testing if desired
-                # break
+                    batch_score, rep_image, is_risky = utils.analyze_ppe_risk_batch(
+                        valid_frames_data, threshold = Config.IOU_THRESHOLD
+                    )
+
+                    # Store results in our rolling window buffer
+                    event_buffer.append({
+                        'is_risky': is_risky,
+                        'rep_image': rep_image,
+                        'score': batch_score
+                    })
+
+                    if len(event_buffer) == Config.WINDOW_SIZE:
+                        risky_batches_count = sum(1 for b in event_buffer if b['is_risky'])
+                        risk_ratio = risky_batches_count / Config.WINDOW_SIZE
+
+                        if risk_ratio >= Config.RISK_THRESHOLD:
+                            logger.warning(f"CRITICAL: Confirmed PPE Risk Event! (Ratio: {risk_ratio:.2%})")
+
+                            # Select the 1st, Middle (6th), and 12th representative images
+                            # Note: Indexing for 12 items -> 0, 5, 11
+                            selected_snapshots = [
+                                event_buffer[0]['rep_image'],
+                                event_buffer[Config.WINDOW_SIZE // 2]['rep_image'],
+                                event_buffer[-1]['rep_image']
+                            ]
+
+                            # --- SHARED MEMORY QUEUE SECTION ---
+                            
+                            # TODO: Option 1 - Sending as a List of images
+                            # This is useful if the consumer process expects a simple sequence of frames.
+                            # shared_queue.put(selected_snapshots)
+
+                            # TODO: Option 2 - Sending as a Dictionary with metadata
+                            # Better practice for tracking event details, timestamps, and average scores.
+                            # event_packet = {
+                            #     'event_type': 'PPE_VIOLATION_CONFIRMED',
+                            #     'images': selected_snapshots,
+                            #     'avg_score': sum(b['score'] for b in event_buffer) / WINDOW_SIZE,
+                            #     'timestamp': time.time()
+                            # }
+                            # shared_queue.put(event_packet)
+                            
+                            # ----------------------------------
+
+                            # COOLDOWN/RESET: Clear buffer to wait for a completely new set of 12 batches
+                            event_buffer = []
+                            logger.info("Event sent. Buffer reset for cooldown.")
+                        else:
+                            # SLIDING WINDOW: If no event triggered, remove the oldest to keep moving
+                            event_buffer.pop(0)
+
+                    # ====== BATCH RISK DETECTION PART IS OVER ====== ====== ====== 
 
             elif not streamer.is_running and len(streamer.frame_buffer) == 0:
                 break
             else:
                 # Wait briefly if buffer is not ready yet
                 time.sleep(0.005)
+
+        # Process remaining batches by the end of the stream
+        if event_buffer:
+            final_size = len(event_buffer)
+            risky_count = sum(1 for b in event_buffer if b['is_risky'])
+            final_ratio = risky_count / final_size
+
+            if final_ratio >= Config.RISK_THRESHOLD:
+                logger.warning(f"End of Stream Risk Detected! (Ratio: {final_ratio:.2%})")
+                
+                # Dynamic indices for smaller buffer
+                snapshots = [event_buffer[0]['rep_image'], 
+                             event_buffer[final_size // 2]['rep_image'], 
+                             event_buffer[-1]['rep_image']]
+                
+                # TODO: shared_queue.put({'type': 'EOS_EVENT', 'images': snapshots})
+                logger.info("Final event sent before closing.")
 
     except KeyboardInterrupt:
         logger.info("Manual stop triggered.")
@@ -99,17 +170,17 @@ def main():
         if hasattr(cap, 'release'):
             cap.release()
 
+    latency = time.perf_counter() - start_time
+
     print("-" * 30)
     logger.info("PIPELINE SUMMARY:")
     logger.info(f"Total Blurry frames skipped: {streamer.blur_counter}")
     logger.info(f"Total Static frames skipped (No Motion): {streamer.motion_skip_counter}")
     logger.info(f"Total Frames skipped (No Person detected): {no_person_counter}")
     logger.info(f"Total Valid batches processed: {processed_batches_counter}")
+    logger.info(f"Latency: {time.perf_counter() - start_time}")
     print("-" * 30)
 
-# TODO: sornasında Vectoriezed IoU risk hesaplatan bir fonksiyona yollasın riskli ise orta kareyi dönsün 
-# -> shared_memory queue'ya frame'i ve bilgileri yolla. 
-#       
 
 if __name__ == "__main__":
     main()
