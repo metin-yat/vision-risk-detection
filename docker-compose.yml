@@ -12,9 +12,12 @@ services:
     environment:
       - SOURCE_DIR=/app/source/false1.mp4
       - RISKY_DIR=/app/scenes
+      - REDIS_HOST=redis_service
     networks:
       - vision_network
-    
+    depends_on:
+      - redis_service
+
     deploy:
       resources:
         reservations:
@@ -24,6 +27,16 @@ services:
               capabilities: [gpu]
     # restart: unless-stopped
 
+  redis_service:
+    image: redis:alpine
+    container_name: ppe_redis
+    networks:
+      - vision_network
+    volumes:
+      - redis_data:/data
+    
+volumes:
+  redis_data:
 networks:
   vision_network:
     driver: bridge

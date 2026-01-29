@@ -9,3 +9,4 @@ ultralytics
 python-dotenv
 inference-gpu
 
+redis

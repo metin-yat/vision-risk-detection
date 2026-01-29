@@ -8,8 +8,16 @@ import cv2, threading
 from collections import deque
 from config import Config
 from datetime import datetime
+import redis
 
 logger = logging.getLogger(__name__)
+
+redis_client = redis.StrictRedis(
+    host=os.getenv("REDIS_HOST", "redis_service"), 
+    port=6379, 
+    db=0, 
+    decode_responses=True
+)
 
 class SmartStreamer:
     def __init__(self, cap_object, batch_size=10, buffer_limit=50):
@@ -374,6 +382,8 @@ def save_event_assets(selected_data, event_id):
             "metadata": data['metadata']
         })
 
-    # ready for redis
-    logger.info(f"Event {event_id} processed. Assets saved to {event_dir}")
-    # TODO: redis_client.lpush("ppe_queue", json.dumps(event_packet))
+    try:
+        redis_client.lpush("ppe_event_queue", json.dumps(event_packet))
+        logger.info(f"Event {event_id} successfully pushed to Redis queue.\n {event_dir}\n")
+    except Exception as e:
+        logger.error(f"Failed to push event {event_id} to Redis: {e}")
