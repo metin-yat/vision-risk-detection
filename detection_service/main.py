@@ -6,7 +6,9 @@ from config import Config
 import logging, cv2, os, utils, time
 from dotenv import load_dotenv
 from statistics import mean
-import threading
+import threading, uuid, json
+from datetime import datetime
+
 
 load_dotenv()
 api_key = os.getenv("API_KEY")
@@ -87,7 +89,7 @@ def main():
                 if valid_frames_data:
                     processed_batches_counter += 1
                     
-                    batch_score, rep_image, is_risky = utils.analyze_ppe_risk_batch(
+                    batch_score, rep_image, is_risky, metadata = utils.analyze_ppe_risk_batch(
                         valid_frames_data, threshold = Config.IOU_THRESHOLD
                     )
 
@@ -95,7 +97,8 @@ def main():
                     event_buffer.append({
                         'is_risky': is_risky,
                         'rep_image': rep_image,
-                        'score': batch_score
+                        'score': batch_score,
+                        'metadata': metadata
                     })
 
                     if len(event_buffer) == Config.WINDOW_SIZE:
@@ -107,29 +110,27 @@ def main():
 
                             # Select the 1st, Middle (6th), and 12th representative images
                             # Note: Indexing for 12 items -> 0, 5, 11
-                            selected_snapshots = [
-                                event_buffer[0]['rep_image'],
-                                event_buffer[Config.WINDOW_SIZE // 2]['rep_image'],
-                                event_buffer[-1]['rep_image']
+                            all_risky_data = [
+                                {'rep_image': b['rep_image'], 'metadata': b['metadata']} 
+                                for b in event_buffer if b['rep_image'] is not None
                             ]
+                            if all_risky_data:
+                                selected_data = [
+                                    all_risky_data[0],
+                                    all_risky_data[len(all_risky_data)//2],
+                                    all_risky_data[-1]
+                                ]
 
-                            # --- SHARED MEMORY QUEUE SECTION ---
-                            
-                            # TODO: Option 1 - Sending as a List of images
-                            # This is useful if the consumer process expects a simple sequence of frames.
-                            # shared_queue.put(selected_snapshots)
+                                event_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
 
-                            # TODO: Option 2 - Sending as a Dictionary with metadata
-                            # Better practice for tracking event details, timestamps, and average scores.
-                            # event_packet = {
-                            #     'event_type': 'PPE_VIOLATION_CONFIRMED',
-                            #     'images': selected_snapshots,
-                            #     'avg_score': sum(b['score'] for b in event_buffer) / WINDOW_SIZE,
-                            #     'timestamp': time.time()
-                            # }
-                            # shared_queue.put(event_packet)
-                            
-                            # ----------------------------------
+                                save_thread = threading.Thread(
+                                    target = utils.save_event_assets, 
+                                    args=(selected_data, event_id)
+                                )
+                                save_thread.start()
+                            else:
+                                logger.warning(" - - - - T h e r e  i s  n o t h i n g  t o  i n s p e c t  l a d ")
+                                continue
 
                             # COOLDOWN/RESET: Clear buffer to wait for a completely new set of 12 batches
                             event_buffer = []
@@ -155,13 +156,25 @@ def main():
             if final_ratio >= Config.RISK_THRESHOLD:
                 logger.warning(f"End of Stream Risk Detected! (Ratio: {final_ratio:.2%})")
                 
-                # Dynamic indices for smaller buffer
-                snapshots = [event_buffer[0]['rep_image'], 
-                             event_buffer[final_size // 2]['rep_image'], 
-                             event_buffer[-1]['rep_image']]
-                
-                # TODO: shared_queue.put({'type': 'EOS_EVENT', 'images': snapshots})
-                logger.info("Final event sent before closing.")
+                all_risky_data = [
+                    {'rep_image': b['rep_image'], 'metadata': b['metadata']} 
+                    for b in event_buffer if b['rep_image'] is not None
+                ]
+
+                if all_risky_data:
+                    selected_data = [
+                        all_risky_data[0],
+                        all_risky_data[len(all_risky_data)//2],
+                        all_risky_data[-1]
+                    ]
+
+                    event_id = f"EOS_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
+
+                    save_thread = threading.Thread(
+                        target=utils.save_event_assets, 
+                        args=(selected_data, event_id)
+                    )
+                    save_thread.start()
 
     except KeyboardInterrupt:
         logger.info("Manual stop triggered.")
@@ -170,8 +183,7 @@ def main():
         if hasattr(cap, 'release'):
             cap.release()
 
-    latency = time.perf_counter() - start_time
-
+    print()
     print("-" * 30)
     logger.info("PIPELINE SUMMARY:")
     logger.info(f"Total Blurry frames skipped: {streamer.blur_counter}")
@@ -184,3 +196,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# TODO: Ondan sonra dockerize edeceğiz. 
+# TODO: Volume mounting kısmını ayarladıktan sonra detection işi bitmiş olacak.

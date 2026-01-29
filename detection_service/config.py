@@ -5,7 +5,8 @@ from pathlib import Path
 class Config:
     SOURCE_DIR = os.getenv("SOURCE_DIR", "source/false1.mp4")
     QUEUE_DIR = os.getenv("QUEUE_DIR", "data/queue")
-    
+    RISKY_DIR = os.getenv("RISKY_DIR", "scenes")
+
     # Model settings
     MODEL_PATH = os.getenv("MODEL_PATH", "construction-safety-gsnvb/1")
     #"person-helmet-2dfvf/1")#"helmet-person-person_with_helmet/1")

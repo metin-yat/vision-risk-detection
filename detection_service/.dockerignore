@@ -1,0 +1,7 @@
+__pycache__
+*.pyc
+app.log
+.env
+.git
+.gitignore
+scenes/

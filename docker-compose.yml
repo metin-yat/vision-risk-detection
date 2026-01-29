@@ -1,0 +1,29 @@
+services:
+  detection_service:
+    build: 
+      context: ./detection_service
+      dockerfile: Dockerfile
+    container_name: ppe_detection_service
+    env_file:
+      - ./detection_service/.env
+    volumes:
+      - ./scenes:/app/scenes
+      - ./source:/app/source
+    environment:
+      - SOURCE_DIR=/app/source/false1.mp4
+      - RISKY_DIR=/app/scenes
+    networks:
+      - vision_network
+    
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # restart: unless-stopped
+
+networks:
+  vision_network:
+    driver: bridge
