@@ -134,7 +134,7 @@ def main():
 
                             # COOLDOWN/RESET: Clear buffer to wait for a completely new set of 12 batches
                             event_buffer = []
-                            logger.info("Event sent. Buffer reset for cooldown.")
+                            # logger.info("Event sent. Buffer reset for cooldown.")
                         else:
                             # SLIDING WINDOW: If no event triggered, remove the oldest to keep moving
                             event_buffer.pop(0)
@@ -182,7 +182,7 @@ def main():
         streamer.is_running = False
         if hasattr(cap, 'release'):
             cap.release()
-
+    """
     print()
     print("-" * 30)
     logger.info("PIPELINE SUMMARY:")
@@ -192,7 +192,7 @@ def main():
     logger.info(f"Total Valid batches processed: {processed_batches_counter}")
     logger.info(f"Latency: {time.perf_counter() - start_time}")
     print("-" * 30)
-
+    """
 
 if __name__ == "__main__":
     main()

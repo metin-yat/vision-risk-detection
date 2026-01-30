@@ -35,6 +35,31 @@ services:
     volumes:
       - redis_data:/data
     
+  vlm_service:
+    build:
+      context: ./vlm_service
+      dockerfile: Dockerfile
+    container_name: ppe_vlm_service
+    environment:
+      - REDIS_HOST=redis_service
+      - REDIS_PORT=6379
+      - SCENES_DIR=/app/scenes
+      - MODEL_PATH=/app/models/smolvlm
+    volumes:
+      - ./scenes:/app/scenes 
+      - ./models:/app/models
+    networks:
+      - vision_network
+    depends_on:
+      - detection_service
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+  
 volumes:
   redis_data:
 networks:

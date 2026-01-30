@@ -383,7 +383,7 @@ def save_event_assets(selected_data, event_id):
         })
 
     try:
+        logger.info(f"Event {event_id} successfully pushed to Redis queue.{event_dir}")
         redis_client.lpush("ppe_event_queue", json.dumps(event_packet))
-        logger.info(f"Event {event_id} successfully pushed to Redis queue.\n {event_dir}\n")
     except Exception as e:
         logger.error(f"Failed to push event {event_id} to Redis: {e}")
