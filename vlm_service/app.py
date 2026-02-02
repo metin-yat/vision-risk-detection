@@ -20,9 +20,14 @@ def main():
         _, data = r.brpop(Config.INPUT_QUEUE)
         event = json.loads(data.decode('utf-8'))
         
-        logger.info(f"Analyzing Event: {event.get('event_id')}")
         result = analyzer.process_event(event)
-        logger.info(f"VLM Result: {result}")
+        if result:
+            logger.info(f"Analyzing Event: {event.get('event_id')}")
+            logger.info(f"VLM Result: {result}")
+
+            if "EOS" in event.get('event_id', ''):
+                logger.info(f"End of Stream (EOS)")
+                break
 
 if __name__ == "__main__":
     main()

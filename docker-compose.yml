@@ -29,6 +29,7 @@ services:
 
   redis_service:
     image: redis:alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
     container_name: ppe_redis
     networks:
       - vision_network
