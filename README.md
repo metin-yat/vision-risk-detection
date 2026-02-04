@@ -34,7 +34,7 @@ SmolVLM analyzing a construction site snapshot. The system identifies the indivi
 ### Installation & Running
 1. **Clone the repository:**
    ```bash
-   git clone [https://github.com/yourusername/vision-risk-detection.git](https://github.com/yourusername/vision-risk-detection.git)
+   git clone https://github.com/metin-yat/vision-risk-detection.git
    cd vision-risk-detection
    ```
 
