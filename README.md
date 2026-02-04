@@ -1,9 +1,9 @@
 # Vision Risk Detection System
 
-![Python](https://img.shields.io/badge/Python-3.9+-blue?style=flat-square)
-![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?style=flat-square)
-![Redis](https://img.shields.io/badge/Redis-Messaging-DC382D?style=flat-square)
-![VLM](https://img.shields.io/badge/VLM-SmolVLM--500M-EE4C2C?style=flat-square)
+![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
+![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white)
+![VLM](https://img.shields.io/badge/VLM-SmolVLM--500M-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
 
 This project implements a multi-service asynchronous pipeline for automated PPE compliance and workplace safety monitoring. The system bridges traditional object detection with advanced visual reasoning to provide contextual risk analysis from live video streams.
 
@@ -19,5 +19,39 @@ Unlike standard detection models that only label objects, this system integrates
 
 The environment is fully containerized using a GPU-aware Docker Compose configuration, ensuring production-ready deployment with seamless access to hardware acceleration. The use of Redis as an event bus ensures that the inference engine and the VLM reasoning layer can scale independently based on workload requirements.
 
----
-*Note: This project is currently in progress. VLM prompt optimization and comprehensive installation guides will be provided in upcoming updates.*
+## Results
+![Service's Output Example](./vision_risk_detection.png)
+
+SmolVLM analyzing a construction site snapshot. The system identifies the individual (P1), detects the absence of mandatory safety gear, and generates a structured violation report stating: 'Human head is visible; no helmet detected.'
+
+## Setup & Execution
+
+### Prerequisites
+* **Docker & Docker Compose**
+* **NVIDIA Driver & NVIDIA Container Toolkit** (for GPU-accelerated inference)
+* **Roboflow API Key** (Set in your environment variables)
+
+### Installation & Running
+1. **Clone the repository:**
+   ```bash
+   git clone [https://github.com/yourusername/vision-risk-detection.git](https://github.com/yourusername/vision-risk-detection.git)
+   cd vision-risk-detection
+   ```
+
+2. **Configure Environment:** Create a .env file in the root directory or ensure your docker-compose.yml has the necessary credentials:
+   ```env
+   ROBOFLOW_API_KEY=your_api_key_here
+   ```
+
+3. **Deploy with Docker Compose:** The entire pipeline (Redis, Streamer, and VLM Worker) can be started with a single command:
+   ```bash
+    docker-compose up --build
+   ```
+
+## Future Enhancements & Extensibility
+
+The system is designed with modularity in mind, allowing for easy upgrades and research:
+
+* **High-Parameter VLM Integration:** Transition from SmolVLM to more powerful models. To use a local model or a different service, simply update the **Model Loading** section of the code.
+* **Transition to Segmentation:** While the current version utilizes Bounding Boxes (BBox), you can easily implement an Instance Segmentation model (e.g., SAM or YOLO-Seg). The architecture is ready for this transition; you only need to modify the **IoU (Intersection over Union)** and **SoM (Set-of-Mark)** logic to handle mask data.
+* **Domain-Specific Fine-Tuning:** Fine-tune the VLM on specialized construction datasets to improve recognition of complex safety gear like harnesses or specific welding masks.
